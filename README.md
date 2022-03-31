@@ -1,6 +1,9 @@
 # CENAGRO
 En este repositorio encontrarás el proceso de cálculo para estimar y replicar indicadores del Censo Nacional Agropecuario (CENAGRO) de Perú.
-Data: https://drive.google.com/drive/folders/1ZvUr7AP0GNUZHu2jU25y1Jlid4HdV7QK?usp=sharing
+## Data
+ - Extraída de microdatos de INEI y convertida a .dta (Stata)
+ - Data: https://drive.google.com/drive/folders/1ZvUr7AP0GNUZHu2jU25y1Jlid4HdV7QK?usp=sharing
+ 
 ## Referencias
 - Manual del cencista IV cenagro
 - Microdatos del INEI http://iinei.inei.gob.pe/microdatos/
