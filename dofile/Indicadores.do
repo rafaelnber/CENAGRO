@@ -1,7 +1,7 @@
 
 ***============================================================
 ***          Cálculo de Indicadores de CENAGRO
-***          Fecha:   26/02/2022
+***          Fecha ultima actualización:   30/03/2022
 ***          Versión: Stata 16
 ***          Autor: Andrés Talavera Cuya 
 ***============================================================
@@ -16,16 +16,9 @@ set more off
 	
 global DIR_ROOT   "D:\ANDRES\Documentos\GitHub\IndicadoresStata\Cenagro\"
 
-cd  "${DIR_ROOT}\dataset\"
-
-cap mkdir Inicial
-cap mkdir Intermedio
-cap mkdir Final
-
-global DIR_DATA_INIT	"${DIR_ROOT}\dataset\Inicial" 
-global DIR_DATA_INTERM	"${DIR_ROOT}\dataset\Intermedio" 
-global DIR_DATA_FINAL   "${DIR_ROOT}\dataset\Final" 
-
+global DIR_DATA_INIT	"D:\Dropbox\BASES\CENAGRO\Inicial" 
+global DIR_DATA_INTERM	"D:\Dropbox\BASES\CENAGRO\Intermedio" 
+global DIR_DATA_FINAL   "D:\Dropbox\BASES\CENAGRO\Final" 
 
 global rec01  "${DIR_DATA_INIT}\rec01" 
 global rec02  "${DIR_DATA_INIT}\rec02" 
@@ -40,11 +33,19 @@ global rec04b "${DIR_DATA_INIT}\rec04b"
 global dofile   "${DIR_ROOT}\dofile"
 
 *** ==================================================================
+***		Rutas donde se encuentran los shapefile 
+*** ==================================================================
+
+global shapefile "${DIR_ROOT}\shapefile"
+
+
+*** ==================================================================
 ***		Rutas donde se encuentran las plantillas excel 
 *** ==================================================================
 
 global excel  "${DIR_ROOT}\excel"
 
+display "$excel" 
 	
 *** ==================================================================
 ***		              Superficie agropecuaria (has)
@@ -144,10 +145,12 @@ saveold "${DIR_DATA_INTERM}\sup_usos.dta",replace
 cd "${rec01}"
 use rec01,clear 
 keep if resultado==1|resultado==2
-merge 1:1 p001 p002 p003 p007x p008 nprin using    "${DIR_DATA_INTERM}\sup_cultivos.dta"
-drop _merge
-merge 1:1 p001 p002 p003 p007x p008 nprin using    "${DIR_DATA_INTERM}\sup_usos.dta"
+merge 1:1 p001 p002 p003 p007x p008 nprin using    "${DIR_DATA_INTERM}\sup_cultivos.dta" , nogen 
+merge 1:1 p001 p002 p003 p007x p008 nprin using    "${DIR_DATA_INTERM}\sup_usos.dta" , nogen 
 
+cd "${DIR_DATA_INTERM}"
+save rec01_usos,replace 
+ 
 *** ==================================================================
 ***		Superficie agrícola  
 *** ==================================================================
@@ -165,7 +168,7 @@ table wregion if ((resultado==1 | resultado==2)), c(sum sup_agri) format(%12.2f)
 gen sup_riego=wsup03a
 gen sup_secano=wsup03b
 
-table wregion if ((resultado==1 | resultado==2)), c(sum wsup03a sum wsup03b ) format(%12.2f) center row col
+table wregion if ((resultado==1 | resultado==2)), c(sum sup_riego sum sup_secano ) format(%12.2f) center row col
 
 
 *****************************************************************
@@ -173,7 +176,7 @@ table wregion if ((resultado==1 | resultado==2)), c(sum wsup03a sum wsup03b ) fo
 *** ==================================================================
 ***		Superficie no agrícola  
 *** ==================================================================
-
+br sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros
 egen sup_no_agri=rowtotal(sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros) 
 
 table wregion if ((resultado==1 | resultado==2)), c(sum sup_no_agri) format(%12.2f) center row col
@@ -193,6 +196,7 @@ table wregion if ((resultado==1 | resultado==2)), c(sum sup_ua) format(%12.2f) c
 *** ==================================================================
 ***		tostring y destring para solucionar problemas de colas 
 *** ==================================================================
+br sup_agri sup_semb sup_barb sup_agr_sin sup_des sup_no_agri sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros sup_riego sup_secano
 
 tostring sup_agri sup_semb sup_barb sup_agr_sin sup_des sup_no_agri sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros sup_riego sup_secano, replace usedisplayformat force 
 destring sup_agri sup_semb sup_barb sup_agr_sin sup_des sup_no_agri sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros sup_riego sup_secano,replace 
@@ -201,17 +205,15 @@ destring sup_agri sup_semb sup_barb sup_agr_sin sup_des sup_no_agri sup_past_man
 
 preserve  
 collapse (sum) sup_riego (sum) sup_secano 
-export excel using "${excel}\reporte.xlsx",sheet("c01" , modify) cell(s27) keepcellfmt   
+export excel using "${excel}\reporte.xlsx",sheet("c01" , modify) cell(s27) keepcellfmt  
 restore 
-
-exit 
-
-
 
 
 *** ==================================================================
 ***		rename de superficies 
 *** ==================================================================
+
+br sup_ua sup_agri sup_semb sup_barb sup_des sup_agr_sin sup_no_agri sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros
 
 rename (sup_ua sup_agri sup_semb sup_barb sup_des sup_agr_sin sup_no_agri sup_past_manej sup_past_nmanej sup_mont_bos  sup_otros) (sup_1 sup_2 sup_3 sup_4 sup_5 sup_6 sup_7 sup_8 sup_9 sup_10 sup_11) 
 
@@ -230,7 +232,7 @@ la var sup_10 "superficie con montes y bosques (ha)"
 la var sup_11 "superficie con otros usos (ha)"
 
 *** ==================================================================
-***		transponiendo la base para realizar la prueba t 
+***		transponiendo la base 
 *** ==================================================================
 keep p001 p002 p003 p007x p008 nprin sup_1 sup_2 sup_3 sup_4 sup_5 sup_6 sup_7 sup_8 sup_9 sup_10 sup_11 
 reshape long sup_, i(p001 p002 p003 p007x p008 nprin) j(usos) 
@@ -280,7 +282,9 @@ label values rDpto2 rDpto2
 
 table rDpto2 usos , c(sum sup_) format(%12.2f) center row col
 
+*Podria programar rutina para resultados por departamentos. 
 
+*Nacional: 
 preserve  
 collapse (sum) sup_ , by(usos )
 export excel using "${excel}\reporte.xlsx",sheet("c01" , modify) cell(o8) keepcellfmt   
@@ -294,11 +298,207 @@ reshape wide sup_, i(rDpto2) j(usos)
 export excel using "${excel}\reporte.xlsx",sheet("c02" , modify) cell(b7) keepcellfmt   
 restore 
 
+
+*** ==================================================================
+***	 Superficie agrícola con cultivo de café , a nivel distrital
+*** ==================================================================
+
+cd "$rec02" 
+use rec02.dta ,clear 
+recode   p025 (.= 0)
+gen sup_semb=p025 if p024_01<=18
+br p024_03 sup_semb 
+gen cafe=(p024_03==1203) /*dummy 1: si la sup. sembrada es café. 0= no*/ 
+gen sup_semb_cafe=sup_semb if cafe==1
+
+collapse (sum) sup_semb_cafe, by(p001 p002 p003) 
+
+gen ubigeo =p001 + p002 + p003 
+gen P001=real(p001)
+label define rDpto  1 "Amazonas" 2 "Áncash" 3 "Apurímac" 4 "Arequipa" 5 "Ayacucho" 6 "Cajamarca" 7 "Prov Const del Callao" 8 "Cusco" 9 "Huancavelica" 10 "Huánuco" 11 "Ica" 12 "Junín" 13 "La Libertad" 14 "Lambayeque" 15 "Lima" 16 "Loreto" 17 "Madre de Dios" 18 "Moquegua" 19 "Pasco" 20 "Piura" 21 "Puno" 22 "San Martín" 23 "Tacna" 24 "Tumbes" 25 "Ucayali"
+label values P001 rDpto
+
+
+table P001 , c(sum sup_semb_cafe) format(%12.2f) center row col
+
+save "${DIR_DATA_INTERM}\cafe_ivcenagro.dta",replace 
+
+**mapa distrital de café 
+*** ==================================================================
+***	 mapa de Superficie agrícola con cultivo de café, a nivel distrito 
+*** ==================================================================
+
+**PARTE 1: PREPARAR LOS SHAPEFILE 
+
+*Descarga shape file distrital 
+cd "${DIR_DATA_INTERM}"
+copy "https://account.geodir.co/resources/file/recursos/geodir-ubigeo-inei.xlsx" geodir-ubigeo-inei.xlsx
+
+copy "https://account.geodir.co/resources/file/recursos/geodir-ubigeo-inei.zip" geodir-ubigeo-inei.zip
+
+unzipfile geodir-ubigeo-inei.zip
+erase geodir-ubigeo-inei.zip
+
+*ssc install shp2dta 
+*convertir shp a dta:  
+shp2dta using "geodir_ubigeo_inei.shp", ///
+    data("${DIR_DATA_INTERM}\dbasedist.dta") coor("${DIR_DATA_INTERM}\coordist.dta") genid(id) gencentroids(c) replace
+
+	
+shp2dta using "LIMITE_DEP.shp", ///
+    data("${DIR_DATA_INTERM}\dbasedep.dta") coor("${DIR_DATA_INTERM}\coordep.dta") genid(id) gencentroids(c) replace
+
+	
+dir*dta
+
+cd ${DIR_DATA_INTERM}
+use dbasedist.dta,clear 
+
+
+**Distritos iv cenagro 2012 
+
+import excel "D:\Dropbox\BASES\CENAGRO\Intermedio\IV CENAGRO - Tabla_Distritos.xlsx", sheet("Distritos") cellrange(B4:E1841) firstrow clear
+rename CÓDIGODEPARTAMENTO ccdep 
+rename CÓDIGOPROVINCIA ccprov 
+rename CÓDIGO ccdd 
+rename TÍTULO distrito_ivcen 
+gen ubigeo =ccdep + ccprov + ccdd 
+save distrito,replace 
+
+import excel "D:\Dropbox\BASES\CENAGRO\Intermedio\IV CENAGRO - Tabla_Provincias.xlsx", sheet("Prov") cellrange(B4:D199) firstrow clear
+rename CÓDIGODEPARTAMENTO ccdep 
+rename CÓDIGO ccprov 
+rename TÍTULO provincia_ivcen 
+save provincia,replace 
+  
+import excel "D:\Dropbox\BASES\CENAGRO\Intermedio\IV CENAGRO - Tabla_Departamentos.xlsx", sheet("Dpto") cellrange(B4:C29) firstrow clear
+rename CODIGO ccdep
+rename TÍTULO departamento_ivcen 
+save dep,replace 
+
+
+use distrito,clear 
+merge m:1 ccdep ccprov using provincia.dta, nogen 
+merge m:1 ccdep using dep.dta, nogen 
+save ubigeo-ivcenagro.dta,replace 
+
+
+**Union 
+cd ${DIR_DATA_INTERM}
+use cafe_ivcenagro.dta,clear 
+merge 1:1 ubigeo using ubigeo-ivcenagro.dta , nogen 
+merge 1:1 ubigeo using dbasedist.dta
+gsort +_merge
+
+*putumayo/maynas : 160801 (inei 2019)
+*putumayo/maynas : 160109 (iv cenagro 2012) 
+
+*mazamari/satipo: 120604 (inei 2019)
+*pangoa  /satipo: 120606 (inei 2019)
+*mazamari-pangoa satipo: 120699 (iv cenagro 2012) 
+
+*Teniente Manuel Clavero/maynas: 160803 (inei 2019)
+*Teniente Manuel Clavero/maynas: 160114 (iv cenagro 2012) 
+
+
+use cafe_ivcenagro.dta,clear 
+replace ubigeo="160801" if ubigeo=="160109"
+replace ubigeo="160803" if ubigeo=="160114"
+save,replace 
+
+
+**PARTE 2: MAPA 
+** Falta considerar la superficie sembrada de mazamari-pangoa satipo
+cd ${DIR_DATA_INTERM}
+use cafe_ivcenagro.dta,clear 
+merge 1:1 ubigeo using dbasedist.dta
+	#delimit ;	
+    . spmap sup_semb_cafe if sup_semb_cafe >0 using "coordist.dta", id(id)
+        clnumber(7) fcolor(Reds2) ocolor(none ..)    
+        title("Superficie cultivada de café, segun distritos", size(*0.8))
+        subtitle("Perú, iv Cenagro 2012" " ", size(*0.8))                       
+        legstyle(3) 
+		line(data("coordep.dta") size(0.2) color(black))
+		label(data("dbasedep.dta") xcoord(x_c) ycoord(y_c) by(id) label(NOMBDEP) color(black) size(*0.6 ..) pos(0 6) length(25));
+#delimit cr
+	  
+	  
+	  
+*** ==================================================================
+***	 Superficie agrícola con cultivo de café, a nivel unidad agropec.
+*** ==================================================================
+
+  cd ${DIR_DATA_INTERM}
+ssc install spgrid /*Genera cuadrículas bidimensionales para el análisis de datos espaciales*/
+ssc install spkde /*estimación kernel de las funciones de densidad e intensidad para patrones de puntos espaciales bidimensionales*/
+
+
+cd "$rec02" 
+use rec02.dta ,clear 
+recode   p025 (.= 0)
+gen sup_semb=p025 if p024_01<=18
+
+gen cafe=(p024_03==1203)
+gen sup_semb_cafe=sup_semb if cafe==1
+collapse (sum) sup_semb_cafe, by(p001 p002 p003 p007x p008 nprin) 
+
+cd ${DIR_DATA_INTERM}	  
+save cafe_ivcenagro_ua.dta	,replace   
+
+***Uniendo base de sup sembrada con unidades agropecuarias 
+use cafe_ivcenagro_ua.dta,clear 	  
+merge 1:1 p001 p002 p003 p007x p008 nprin using "$rec01\rec01" , nogen 
+gen ubigeo=p001+p002+p003 
+merge m:1 ubigeo using ubigeo-ivcenagro.dta, nogen 
+
+replace sup_semb_cafe=0 if sup_semb_cafe==. 
+
+*¿En que departamento/provincia/distrito se encontró la mayor superficie sembrada de café a nivel de unidad agropecuaria?
+
+list departamento_ivcen provincia_ivcen distrito_ivcen  sup_semb_cafe if sup_semb_cafe>1400 
+
+*Sabias que en el distrito de Apata/Jauja/Junin se encontró a la unidad agropecuaria con mayor superficie sembrada de café (iv cenagro 2012)
+
+*UNID. AGROP. mayores a 500 hectareas de sup. sembrada de café. 
+list departamento_ivcen provincia_ivcen distrito_ivcen  sup_semb_cafe if sup_semb_cafe>500
+ 
+
+*usamos sprid para generar una cuadrícula que cubra el área de Perú. Elegimos una resolución de cuadrícula relativamente fina (ancho de celda de cuadrícula == 0.1 kilometros o lo que es lo mismo 100 metros)
+
+
+spgrid using "coordist.dta",   ///
+        resolution(w0.1) unit(kilometers)             ///
+        cells("ctemp.dta")                 ///
+        points("ptemp.dta")               ///
+        replace compress dots
+    . use "ptemp.dta", clear
+    . spmap using "ctemp.dta", id(spgrid_id)   ///
+        polygon(data("coordist.dta")     ///
+        ocolor(red) osize(thick))
+
+
+*usamos spkde para generar estimaciones kernel de la distribución de probabilidad de unidades agropecuarias que tienen superficie sembrada de café superior a 700 hectareas. Elegimos una función kernel quartic con ancho de banda fijo igual a 100 metros y corrección de borde (edge correction). Spmap se utiliza para mostrar los resultados
+		
+use cafe_ivcenagro_ua.dta,clear 	  
+merge m:1 p001 p002 p003 p007x p008 nprin using "$rec01\rec01"
+replace sup_semb_cafe=0 if sup_semb_cafe==. 
+sum  sup_semb_cafe
+keep if sup_semb_cafe>700
+spkde using "ptemp.dta" ,x(long_deci) y(lat_deci)	///
+kernel(quartic) bandwidth(fbw) fbw(100) ///
+edgecorrect dots saving("kde.dta", replace)	
+
+
+use "kde.dta",clear 
+spmap p using "ctemp.dta" , id(spgrid_id) clmethod(quantile) ///
+clnumber(100) fcolor(Rainbow) ocolor(none ..) legend(off)  
+
+
 *** ==================================================================
 ***	            Caracteristicas del productor agropecuario
 *** ==================================================================
 
-
+cd "$rec01"
 use rec01,clear 
 
 gen ubigeo=p001+p002+p003
@@ -352,7 +552,7 @@ tab wregion
 
 
 *Unidades agropecuarias segun condición jurídica
-
+tab  p016
 tab rDpto2 p016
 
 
@@ -374,14 +574,6 @@ tab contierras
 
 tab wregion 
 
-*_________Exporta a plantilla___________
-tab wregion , matcell(r)
-mat r=r
-mat list r
-putexcel set "${excel}\Cuadro2.xlsx", sheet("Indicadores") modify 
-putexcel I27 = matrix(r),nformat(0,0)  
-**____________________________________
-
 *** ==================================================================
 ***      Edad del conductor de la unidad agropecuaria
 *** ==================================================================
@@ -390,13 +582,6 @@ gen edad=wp112
 mean edad
 ereturn list
 
-*_________Guardando resultados en una matrix___________ 
-mat A=J(12,1,.)
-mat define edad= e(b)
-mat A[1,1]=edad[1,1]
-mat list A
-**____________________________________
-
 *** ==================================================================
 ***      Si el conductor de la unidad agropecuaria es hombre
 *** ==================================================================
@@ -404,6 +589,7 @@ mat list A
 *Si el conductor de la unidad agropecuaria es hombre o mujer.
 recode wp111 (1=1 "Hombre") (2=0 "Mujer"), gen(hombre) 
 
+tab hombre 
 
 *** ==================================================================
 ***      Si la lengua materna del conductor de la unidad agropecuaria es indígena.
@@ -423,14 +609,7 @@ recode wp115 (1/4=1)  (5/max=0),gen(lengua)
 
 la var lengua "lengua materna del conductor es nativa"
 tab lengua
- *_________Guardando resultados en una matrix___________ 
-tab lengua, matcell(r)
-mat define lengua= e(b)
-mat A[2,1]=lengua[1,1]
-mat list A 
-exit 
-**____________________________________
- 
+
 *
 *Educación del conductor de la unidad agropecuaria
 gen educ=wp114
@@ -451,133 +630,20 @@ gen educ=wp114
 
  
 *Porcentaje de conductores de UA que cuentan con educación primaria incompleta o menos
-recode wp114 (1/3=1) (5/max=0), gen(primaria)
-fre wp114
+recode wp114 (1/3=1) (4/max=0), gen(primaria)
+la var primaria "conductores de UA que cuentan con educación primaria incompleta o menos"
 tab primaria
 
-
-
- *_________Guardando resultados en una matrix___________ 
-tab primaria , matcell(r)
-mat define lengua= e(b)
-mat A[1,1]=lengua[1,1]
-mat list r 
-mat define edad= e(b)
-**____________________________________
- 
-
-
-
-
-
-
-exit 
 *Porcentaje de conductores que cuentan con educación secundaria completa o más
 recode wp114 (6/max=1) (1/5=0), gen(secundaria)
+tab secundaria 
 
 *Porcentaje de conductores que cuentan con educación superior incompleta o más
 recode wp114 (7/max=1) (1/6=0), gen(superior)
+tab superior
 
 
-
-
-cd "$rec01" 
-
-*cortes 
-use rec01,clear 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
-**> Superficie agrícola 
-
-*display 7125007.63 + 1431640.10  +  774882.24 + 762807.29 	
-*egen wsup_1=rowtotal(sembrada barbecho wsup08b wsup09)
-*table rDpto2 if ((resultado==1 | resultado==2)), c(sum wsup_1) format(%12.2f) center row col
-
-
-**************************
-* Superficie no agrícola *
-**************************
-
-
-
-
-
-
-*
-	*Superficie agrícola (has) 
-	gen supagri=0
-	replace supagri=wsup03 if p019_01!=1
-	table rDpto2 if ((resultado==1 | resultado==2)), c(sum 	supagri) format(%12.2f) center row col
- 
-		*Superficie en barbecho
-		*Superficie agrícola sin uso 
-		*
-	
-	
-	
-	
-	
-	
-	
-	*Pastos naturales (has)
-	gen pastos=wsup14 
-	table rDpto2 if ((resultado==1 | resultado==2) & p019_01!=1), c(sum 	pastos) format(%12.2f) center row col
-	
-	*Montes y bosques (has)
-	gen montes=wsup17
-	table rDpto2 if ((resultado==1 | resultado==2) & p019_01!=1), c(sum 	montes) format(%12.2f) center row col	
-	
-	*Otros usos (has)	
-	
-	
-	
-	
-	*Superficie no agrícola (has)
-	egen supnoagri=rowtotal(wsup04 wsup05)
-	table wregion if ((resultado==1 | resultado==2) & p019_01!=1), c(sum  	supnoagri) format(%9.0f) center row col 
-
-
-**Superficie agrícola según condición:
-
-*
-*Superficie total de las parcelas y sexo del productor PÁGINA 354
-tab wsup02a sexo if (resultado==1 | RESULTAD==2) & P016==1
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-***Año 2012***
+*Usos de fertilizantes 
 clear all
 use "$rec01\rec01.dta"
 keep if resultado==1|resultado==2
@@ -622,6 +688,11 @@ la var ferti   "Uso de fertilizantes químicos"
 la var insec   "Uso de insecticidas"
 la var herbi   "Uso de herbicidas"
 la var fungi   "Uso de fungicidas"
+
+tab semilla
+tab abono
+tab ferti
+
 
 *Innovación agraria 
 
@@ -704,7 +775,6 @@ la val credito  si
 fre credito
 
 *¿Cuál es la razón principal por la que no solicitó el crédito?
-
 tab p096
 	
 	
